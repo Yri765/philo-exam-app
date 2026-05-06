@@ -237,8 +237,23 @@ export default function App() {
                 <Button variant="outlined" size="large" onClick={() => startTest('free')}>
                   {freeProgress > 0 && freeProgress < allQuestions.length 
                     ? `Свободный режим (Продолжить: ${freeProgress} из ${allQuestions.length})` 
-                    : 'Свободный режим (Все вопросы)'}
+                    : 'Свободный режим (Новый тест)'}
                 </Button>
+                {freeProgress > 0 && freeProgress < allQuestions.length && (
+                  <Button 
+                    variant="text" 
+                    color="error" 
+                    size="small"
+                    onClick={() => {
+                      localStorage.removeItem('philo_free_order');
+                      localStorage.removeItem('philo_free_progress');
+                      setFreeOrder([]);
+                      setFreeProgress(0);
+                    }}
+                  >
+                    Сбросить прогресс
+                  </Button>
+                )}
               </Stack>
             </Card>
           </Zoom>
