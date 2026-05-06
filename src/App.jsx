@@ -77,7 +77,6 @@ const parseTest = (text) => {
 const shuffleArray = (array) => {
   const newArr = [...array];
   for (let i = newArr.length - 1; i > 0; i--) {
-    // Получаем высококачественное случайное число через Crypto API
     const randomBuffer = new Uint32Array(1);
     window.crypto.getRandomValues(randomBuffer);
     const randomFloat = randomBuffer[0] / (0xffffffff + 1);
@@ -99,6 +98,10 @@ export default function App() {
   const [streak, setStreak] = useState(0);
   const [maxStreak, setMaxStreak] = useState(0);
 
+  // Свободный режим прогресс
+  const [freeProgress, setFreeProgress] = useState(0);
+  const [freeOrder, setFreeOrder] = useState([]);
+
   const [isAnswered, setIsAnswered] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [mode, setMode] = useState(null);
@@ -107,13 +110,33 @@ export default function App() {
     if (rawText) {
       setAllQuestions(parseTest(rawText));
     }
+    const savedProgress = localStorage.getItem('philo_free_progress');
+    const savedOrder = localStorage.getItem('philo_free_order');
+    if (savedProgress) setFreeProgress(parseInt(savedProgress, 10));
+    if (savedOrder) setFreeOrder(JSON.parse(savedOrder));
   }, []);
 
   const startTest = (selectedMode) => {
-    let selected = [...allQuestions];
+    let selected = [];
     
     if (selectedMode === 'exam') {
-      selected = shuffleArray(selected).slice(0, 30);
+      selected = shuffleArray([...allQuestions]).slice(0, 30);
+    } else if (selectedMode === 'free') {
+      let currentOrder = freeOrder;
+      let currentProgress = freeProgress;
+      
+      // Инициализируем порядок или сбрасываем, если достигли конца
+      if (!currentOrder || currentOrder.length !== allQuestions.length || currentProgress >= allQuestions.length) {
+        currentOrder = shuffleArray([...allQuestions]).map(q => q.id);
+        currentProgress = 0;
+        setFreeOrder(currentOrder);
+        setFreeProgress(0);
+        localStorage.setItem('philo_free_order', JSON.stringify(currentOrder));
+        localStorage.setItem('philo_free_progress', '0');
+      }
+
+      const chunkIds = currentOrder.slice(currentProgress, currentProgress + 30);
+      selected = chunkIds.map(id => allQuestions.find(q => q.id === id));
     }
     
     selected = selected.map(q => ({
@@ -150,6 +173,14 @@ export default function App() {
   };
 
   const handleNext = () => {
+    if (currentIndex === activeQuestions.length - 1) {
+      // Сохраняем прогресс для свободного режима при переходе на финальный экран
+      if (mode === 'free') {
+        const newProgress = freeProgress + activeQuestions.length;
+        setFreeProgress(newProgress);
+        localStorage.setItem('philo_free_progress', newProgress.toString());
+      }
+    }
     setCurrentIndex(prev => prev + 1);
     setIsAnswered(false);
     setSelectedAnswer(null);
@@ -197,14 +228,16 @@ export default function App() {
                 Добро пожаловать
               </Typography>
               <Typography variant="body1" color="text.secondary" mb={4}>
-                Выберите режим прохождения теста. Экзамен проверит ваши знания на 30 случайных вопросах, а свободный режим позволит пройти все {allQuestions.length}.
+                Выберите режим прохождения теста. Экзамен проверит ваши знания на 30 случайных вопросах, а свободный режим позволит пройти все {allQuestions.length} порциями.
               </Typography>
               <Stack spacing={2}>
                 <Button variant="contained" size="large" onClick={() => startTest('exam')}>
-                  Начать Экзамен (30 вопросов)
+                  Начать Экзамен (30 случайных вопросов)
                 </Button>
                 <Button variant="outlined" size="large" onClick={() => startTest('free')}>
-                  Свободный режим
+                  {freeProgress > 0 && freeProgress < allQuestions.length 
+                    ? `Свободный режим (Продолжить: ${freeProgress} из ${allQuestions.length})` 
+                    : 'Свободный режим (Все вопросы)'}
                 </Button>
               </Stack>
             </Card>
@@ -216,9 +249,16 @@ export default function App() {
               <Typography variant="h4" gutterBottom fontWeight="800">
                 Отличная работа!
               </Typography>
-              <Typography variant="h6" color="text.secondary" mb={4}>
-                Вы ответили правильно на {score} из {activeQuestions.length} вопросов.
+              <Typography variant="h6" color="text.secondary" mb={2}>
+                Вы ответили правильно на {score} из {activeQuestions.length} вопросов этой части.
               </Typography>
+
+              {mode === 'free' && (
+                <Typography variant="h5" color="primary" sx={{ mb: 4, fontWeight: 'bold' }}>
+                  Общий прогресс: {freeProgress} / {allQuestions.length}
+                </Typography>
+              )}
+
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, justifyContent: 'center', mb: 5 }}>
                 <Chip 
                   icon={<AutoAwesome />} 
@@ -233,9 +273,29 @@ export default function App() {
                   sx={{ py: 2.5, px: 1, fontSize: '1rem', borderRadius: 4 }} 
                 />
               </Box>
-              <Button variant="contained" size="large" sx={{ py: 1.5, px: 6, borderRadius: 8, fontSize: '1.1rem' }} onClick={() => setMode(null)}>
-                На главную
-              </Button>
+
+              <Stack direction="row" spacing={2} justifyContent="center" flexWrap="wrap" useFlexGap>
+                <Button variant="outlined" size="large" sx={{ py: 1.5, px: 4, borderRadius: 8, fontSize: '1.1rem' }} onClick={() => setMode(null)}>
+                  На главную
+                </Button>
+
+                {mode === 'free' ? (
+                  freeProgress >= allQuestions.length ? (
+                    <Button variant="contained" size="large" sx={{ py: 1.5, px: 4, borderRadius: 8, fontSize: '1.1rem' }} onClick={() => startTest('free')}>
+                      Сбросить и начать заново
+                    </Button>
+                  ) : (
+                    <Button variant="contained" size="large" sx={{ py: 1.5, px: 4, borderRadius: 8, fontSize: '1.1rem' }} onClick={() => startTest('free')}>
+                      Следующие 30 вопросов
+                    </Button>
+                  )
+                ) : (
+                  <Button variant="contained" size="large" sx={{ py: 1.5, px: 4, borderRadius: 8, fontSize: '1.1rem' }} onClick={() => startTest('exam')}>
+                    Повторить экзамен
+                  </Button>
+                )}
+              </Stack>
+
             </Card>
           </Fade>
         ) : (
