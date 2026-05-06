@@ -73,11 +73,16 @@ const parseTest = (text) => {
   return questions;
 };
 
-// --- Алгоритм Fisher-Yates ---
+// --- Криптографически стойкий алгоритм Fisher-Yates ---
 const shuffleArray = (array) => {
   const newArr = [...array];
   for (let i = newArr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    // Получаем высококачественное случайное число через Crypto API
+    const randomBuffer = new Uint32Array(1);
+    window.crypto.getRandomValues(randomBuffer);
+    const randomFloat = randomBuffer[0] / (0xffffffff + 1);
+    
+    const j = Math.floor(randomFloat * (i + 1));
     [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
   }
   return newArr;
